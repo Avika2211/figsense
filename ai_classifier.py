@@ -9,7 +9,7 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 import google.generativeai as genai
-from google.genai import types
+from google.generativeai import types
 from google.generativeai import GenerativeModel
 
 class AIFigureClassifier:
