@@ -66,11 +66,12 @@ class AIFigureClassifier:
 
                 response = self.model.generate_content(
                     contents=[
-                        genai.Part.from_data(image_bytes, mime_type="image/png"),
-                        genai.Part.from_text(prompt)
+                        {"mime_type": "image/png", "data": image_bytes},
+                        prompt
                     ],
                     generation_config={"response_mime_type": "text/plain"}
                 )
+
 
                 if response.text:
                     try:
