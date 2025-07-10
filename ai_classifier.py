@@ -10,7 +10,6 @@ import streamlit as st
 from PIL import Image
 import google.generativeai as genai
 from google.generativeai import GenerativeModel
-from google.generativeai.types import GenerationConfig, Part
 
 
 class AIFigureClassifier:
