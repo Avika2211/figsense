@@ -8,7 +8,7 @@ import random
 import numpy as np
 import streamlit as st
 from PIL import Image
-from google import genai
+import google.generativeai as genai
 from google.genai import types
 from google.generativeai import GenerativeModel
 
