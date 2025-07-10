@@ -9,16 +9,20 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 import google.generativeai as genai
-from google.generativeai import types
 from google.generativeai import GenerativeModel
+from google.generativeai.types import GenerationConfig, Part
+
 
 class AIFigureClassifier:
     """AI-powered figure classifier using Google Gemini."""
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.client = genai.Client(api_key=st.secrets["google_ai"]["api_key"])
         self.confidence_score = 0.0
+
+        # Configure Gemini API
+        genai.configure(api_key=st.secrets["google_ai"]["api_key"])
+        self.model = GenerativeModel("gemini-pro-vision")
 
         self.figure_categories = {
             "bar_chart": "Bar Chart - Shows data using rectangular bars",
@@ -60,15 +64,12 @@ class AIFigureClassifier:
 
                 prompt = self._create_classification_prompt()
 
-                response = self.client.models.generate_content(
-                    model="gemini-2.0-flash-exp",
+                response = self.model.generate_content(
                     contents=[
-                        types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-                        prompt
+                        Part.from_data(image_bytes, mime_type="image/png"),
+                        Part.from_text(prompt)
                     ],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                    ),
+                    generation_config=GenerationConfig(response_mime_type="application/json")
                 )
 
                 if response.text:
@@ -107,43 +108,45 @@ class AIFigureClassifier:
         return self.confidence_score
 
     def _create_classification_prompt(self):
-        categories_text = "\n".join([f"- {key}: {desc}" for key, desc in self.figure_categories.items()])
+        categories_text = "\n".join(
+            [f"- {key}: {desc}" for key, desc in self.figure_categories.items()]
+        )
 
         prompt = f"""
-        Analyze this figure/image and classify it into one of the following categories. Be very precise and accurate.
+Analyze this figure/image and classify it into one of the following categories. Be very precise and accurate.
 
-        AVAILABLE CATEGORIES:
-        {categories_text}
+AVAILABLE CATEGORIES:
+{categories_text}
 
-        CLASSIFICATION REQUIREMENTS:
-        1. Look carefully at the visual elements, structure, and content
-        2. Consider the purpose and typical use of the figure
-        3. For charts/graphs, identify the specific type (bar, pie, line, scatter, etc.)
-        4. For diagrams, determine the specific domain (scientific, medical, engineering, etc.)
-        5. For images, distinguish between photographs, screenshots, logos, etc.
+CLASSIFICATION REQUIREMENTS:
+1. Look carefully at the visual elements, structure, and content
+2. Consider the purpose and typical use of the figure
+3. For charts/graphs, identify the specific type (bar, pie, line, scatter, etc.)
+4. For diagrams, determine the specific domain (scientific, medical, engineering, etc.)
+5. For images, distinguish between photographs, screenshots, logos, etc.
 
-        SPECIAL CONSIDERATIONS:
-        - Tables: Look for structured data in rows and columns
-        - Charts: Identify data visualization patterns (bars, lines, circles, points)
-        - Diagrams: Look for flowcharts, organizational structures, technical drawings
-        - Scientific: Look for formulas, molecular structures, anatomical drawings
-        - Maps: Geographic features, roads, boundaries, topographical elements
+SPECIAL CONSIDERATIONS:
+- Tables: Look for structured data in rows and columns
+- Charts: Identify data visualization patterns (bars, lines, circles, points)
+- Diagrams: Look for flowcharts, organizational structures, technical drawings
+- Scientific: Look for formulas, molecular structures, anatomical drawings
+- Maps: Geographic features, roads, boundaries, topographical elements
 
-        OUTPUT FORMAT (JSON):
-        {{
-            "type": "category_key_from_list_above",
-            "confidence": 0.95,
-            "description": "Brief description of what you see",
-            "details": {{
-                "visual_elements": ["list", "of", "key", "elements"],
-                "data_type": "type of data shown if applicable",
-                "domain": "subject domain if applicable"
-            }},
-            "reasoning": "Why you chose this classification"
-        }}
+OUTPUT FORMAT (JSON):
+{{
+    "type": "category_key_from_list_above",
+    "confidence": 0.95,
+    "description": "Brief description of what you see",
+    "details": {{
+        "visual_elements": ["list", "of", "key", "elements"],
+        "data_type": "type of data shown if applicable",
+        "domain": "subject domain if applicable"
+    }},
+    "reasoning": "Why you chose this classification"
+}}
 
-        Be extremely accurate. If you're not sure between two categories, pick the most specific one that fits best.
-        """
+Be extremely accurate. If you're not sure between two categories, pick the most specific one that fits best.
+"""
         return prompt
 
     def _fallback_classification(self, image=None):
