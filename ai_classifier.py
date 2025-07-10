@@ -15,7 +15,7 @@ class AIFigureClassifier:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+        self.client = genai.Client(api_key=os.environ.get("AIzaSyALwpf8H969Pk1rIjkGOeYbJ-GdQH1LL88"))
         self.confidence_score = 0.0
         
         # Define comprehensive figure categories
