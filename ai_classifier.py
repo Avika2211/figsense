@@ -19,7 +19,7 @@ class AIFigureClassifier:
         self.logger = logging.getLogger(__name__)
         self.confidence_score = 0.0
 
-        # Configure Gemini API
+        # Configure Gemini
         genai.configure(api_key=st.secrets["google_ai"]["api_key"])
         self.model = GenerativeModel("gemini-pro-vision")
 
@@ -56,6 +56,7 @@ class AIFigureClassifier:
 
         for attempt in range(max_retries):
             try:
+                # Convert image to bytes
                 img_buffer = io.BytesIO()
                 image.save(img_buffer, format='PNG')
                 img_buffer.seek(0)
@@ -65,23 +66,26 @@ class AIFigureClassifier:
 
                 response = self.model.generate_content(
                     contents=[
-                        Part.from_data(image_bytes, mime_type="image/png"),
-                        Part.from_text(prompt)
+                        genai.Part.from_data(image_bytes, mime_type="image/png"),
+                        genai.Part.from_text(prompt)
                     ],
-                    generation_config=GenerationConfig(response_mime_type="application/json")
+                    generation_config={"response_mime_type": "text/plain"}
                 )
 
                 if response.text:
-                    result = json.loads(response.text)
-                    self.confidence_score = result.get('confidence', 0.5)
-
-                    return {
-                        'classification': result.get('type', 'unknown'),
-                        'confidence': self.confidence_score,
-                        'description': result.get('description', 'No description available'),
-                        'details': result.get('details', {}),
-                        'reasoning': result.get('reasoning', '')
-                    }
+                    try:
+                        result = json.loads(response.text)
+                        self.confidence_score = result.get('confidence', 0.5)
+                        return {
+                            'classification': result.get('type', 'unknown'),
+                            'confidence': self.confidence_score,
+                            'description': result.get('description', 'No description available'),
+                            'details': result.get('details', {}),
+                            'reasoning': result.get('reasoning', '')
+                        }
+                    except json.JSONDecodeError:
+                        self.logger.warning("Non-JSON Gemini response, using fallback.")
+                        return self._fallback_classification(image)
                 else:
                     return self._fallback_classification(image)
 
@@ -103,15 +107,9 @@ class AIFigureClassifier:
 
         return self._fallback_classification(image)
 
-    def get_confidence(self):
-        return self.confidence_score
-
     def _create_classification_prompt(self):
-        categories_text = "\n".join(
-            [f"- {key}: {desc}" for key, desc in self.figure_categories.items()]
-        )
-
-        prompt = f"""
+        categories_text = "\n".join([f"- {key}: {desc}" for key, desc in self.figure_categories.items()])
+        return f"""
 Analyze this figure/image and classify it into one of the following categories. Be very precise and accurate.
 
 AVAILABLE CATEGORIES:
@@ -123,13 +121,6 @@ CLASSIFICATION REQUIREMENTS:
 3. For charts/graphs, identify the specific type (bar, pie, line, scatter, etc.)
 4. For diagrams, determine the specific domain (scientific, medical, engineering, etc.)
 5. For images, distinguish between photographs, screenshots, logos, etc.
-
-SPECIAL CONSIDERATIONS:
-- Tables: Look for structured data in rows and columns
-- Charts: Identify data visualization patterns (bars, lines, circles, points)
-- Diagrams: Look for flowcharts, organizational structures, technical drawings
-- Scientific: Look for formulas, molecular structures, anatomical drawings
-- Maps: Geographic features, roads, boundaries, topographical elements
 
 OUTPUT FORMAT (JSON):
 {{
@@ -146,7 +137,6 @@ OUTPUT FORMAT (JSON):
 
 Be extremely accurate. If you're not sure between two categories, pick the most specific one that fits best.
 """
-        return prompt
 
     def _fallback_classification(self, image=None):
         try:
@@ -217,18 +207,18 @@ Be extremely accurate. If you're not sure between two categories, pick the most 
                 'reasoning': f'Fallback analysis failed: {str(e)}'
             }
 
+    def get_confidence(self):
+        return self.confidence_score
+
     def get_supported_categories(self):
         return self.figure_categories
 
     def batch_classify(self, images, progress_callback=None):
         results = []
         total = len(images)
-
         for i, image in enumerate(images):
             result = self.classify_figure(image)
             results.append(result)
-
             if progress_callback:
                 progress_callback(i + 1, total)
-
         return results
